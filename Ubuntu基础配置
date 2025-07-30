@@ -1,0 +1,85 @@
+一、网络配置
+1. 查询当前主机网络信息
+查询网卡名称：
+`ip a`
+查询网关：
+`route -n`
+
+2. 修改配置文件
+ `cd /etc/netplan`
+查找配置文件
+`sudo nano 01-networkd-all.yaml `
+
+```
+# Let NetworkManager manage all devices on this system
+network:
+  version: 2
+  # 确保只使用一个渲染器 ↓
+  renderer: NetworkManager
+  ethernets:
+    ens160:
+      match:
+        name: "ens160|enp3s0"  # 正确的别名匹配
+      dhcp4: no
+      dhcp6: no               # 禁用IPv6自动配置
+      addresses: 
+        - 192.168.2.182/24    # IPv4地址和掩码
+      routes:
+        - to: default
+          via: 192.168.2.2    # 网关
+          metric: 100         # 优先级
+      nameservers:
+        addresses:
+          - 114.114.114.114    # 主DNS
+          - 8.8.8.8            # 备用DNS
+```
+
+> 注意，ip不能重复设置
+
+> 如果有两个配置文件需要删除其中一个
+`sudo rm /etc/netplan/50-cloud-init.yaml`
+3.  应用并测试更改
+命令测试更改：
+`sudo netplan try`
+确认没有问题，在确认界面按回车键确定修改，否则，超时后会跳过更改，维持现状。
+`sudo netplan apply`
+
+二、安装ssh
+
+1. 更新并安装
+`sudo apt update && sudo apt install openssh-server`
+
+2. 启动服务
+`sudo systemctl start sshd   # 启动服务
+sudo systemctl enable sshd  # 设置开机自启` 
+
+3. 配置网络与防火墙​
+` sudo ufw allow ssh`
+
+三、配置镜像源
+
+1. 备份原配置
+`sudo cp /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list.d/ubuntu.sources.bak`
+2.​​写入修正配置
+`sudo nano /etc/apt/sources.list.d/ubuntu.sources  `
+``# 主软件源（阿里云镜像）
+Types: deb
+URIs: https://mirrors.aliyun.com/ubuntu/  # 修正路径，移除冗余版本号
+Suites: noble noble-updates noble-backports
+Components: main universe restricted multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg``
+``# 安全更新源（阿里云镜像）
+Types: deb 
+URIs: https://mirrors.aliyun.com/ubuntu/  # 替换官方安全源
+Suites: noble-security
+Components: main universe restricted multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg``
+
+3. ​​更新软件源​​
+`sudo apt update && sudo apt upgrade -y `
+ 
+4.  若更新时报错 404 Not Found：检查 lsb_release -sc 输出是否为 noble。
+确认镜像站是否支持当前版本（如阿里云/清华源均已适配 Ubuntu 24.04）。
+恢复备份文件：
+`sudo cp /etc/apt/sources.list.d/ubuntu.sources.bak /etc/apt/sources.list.d/ubuntu.sources`
+`sudo apt update`
